@@ -8,6 +8,7 @@ func newTextInput() textinput.Model {
 	ti.Focus()
 	ti.CharLimit = 200
 	ti.Width = 100
+	ti.Prompt = ""
 	return ti
 }
 

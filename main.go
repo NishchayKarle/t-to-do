@@ -14,6 +14,20 @@ import (
 
 const tab string = "    "
 
+const instructions = `Key Bindings:
+
+'h'            		-> Show/hide help
+'n'            		-> Add new task
+'k' / 'j'      		-> Move cursor up/down
+'tab' / 'shift+tab' 	-> Increase/decrease indentation
+'enter' / 'space'   	-> Mark task as done
+'d'            		-> Delete task
+'g'            		-> Move to top
+'G'            		-> Move to bottom
+'{' / '}'      		-> Move up/down 3 tasks
+'ctrl+c' / 'q' 		-> Quit
+`
+
 type model struct {
 	fileName          string           // File name to save tasks
 	CurrentTask       task.Task        // The current task
@@ -21,6 +35,7 @@ type model struct {
 	cursor            int              // The cursor is the index of the task that is selected
 	Completed         map[int]struct{} // Set of tasks that are done
 	IndentationLevels []int            // Indentation level
+	showHelp          bool             // Show help
 }
 
 func NewModel() model {
@@ -70,9 +85,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.CurrentTask.NewTaskInput = false
 				m.Tasks = append(m.Tasks, m.CurrentTask.TextInput.Value())
-			}
-		}
 
+			case "esc":
+				m.CurrentTask.NewTaskInput = false
+				m.cursor = len(m.Tasks) - 1
+				m.IndentationLevels = m.IndentationLevels[:len(m.IndentationLevels)-1]
+			}
+
+		}
 		return m, cmd
 	}
 
@@ -96,11 +116,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, m.saveAndQuit()
 
+		case "Q":
+			return m, tea.Quit
+
 		case "n":
 			m.CurrentTask.NewTaskInput = true
 			m.CurrentTask.TextInput.Reset()
 			m.IndentationLevels = append(m.IndentationLevels, 0)
 			m.cursor = len(m.Tasks)
+
+		case "d":
+			if len(m.Tasks) > 0 {
+				m.Tasks = append(m.Tasks[:m.cursor], m.Tasks[m.cursor+1:]...)
+				delete(m.Completed, m.cursor)
+				if m.cursor == len(m.Tasks) {
+					m.cursor--
+				}
+			}
 
 		case "j", "down":
 			if m.cursor < len(m.Tasks)-1 {
@@ -126,6 +158,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Completed[m.cursor] = struct{}{}
 			}
 
+		case "g":
+			m.cursor = 0
+
+		case "G":
+			m.cursor = len(m.Tasks) - 1
+
+		case "{":
+			m.cursor -= 3
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+
+		case "}":
+			m.cursor += 3
+			if m.cursor >= len(m.Tasks) {
+				m.cursor = len(m.Tasks) - 1
+			}
+
+		case "h":
+			m.showHelp = !m.showHelp
 		}
 
 	}
@@ -133,7 +185,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	s := fmt.Sprintf("Tasks: (%s):\n\n", m.fileName)
+	s := fmt.Sprintf("Tasks: %s\n\n", strings.TrimSuffix(m.fileName, ".ttdo"))
 
 	for i, currentTask := range m.Tasks {
 		// Set cursor position
@@ -155,12 +207,19 @@ func (m model) View() string {
 
 	// Handle new task input if the current task is not done
 	if m.CurrentTask.NewTaskInput {
-		indentation := strings.Repeat(tab, m.IndentationLevels[len(m.IndentationLevels)-1])
-		s += fmt.Sprintf("%s%s", indentation, m.CurrentTask.TextInput.View())
+		indentation := strings.Repeat(tab, m.IndentationLevels[m.cursor])
+		s += fmt.Sprintf("%s%s [ ] %s", indentation, ">", m.CurrentTask.TextInput.View())
 	}
 
 	// Remove trailing newline and add footer instructions
-	s = strings.TrimSuffix(s, "\n") + "\n\nPress n to add a new task.\nPress ctrl+c to quit.\n"
+	s = strings.TrimSuffix(s, "\n")
+	if m.CurrentTask.NewTaskInput {
+		s += "\n\nPress 'enter' to save task. Press 'esc' to cancel\n"
+	} else if !m.showHelp && !m.CurrentTask.NewTaskInput {
+		s += "\n\nPress 'q' to save & quit.\nPress 'Q' to quit without saving.\nPress 'h' for help.\n"
+	} else {
+		s += "\n\n" + instructions
+	}
 
 	return s
 }
@@ -170,6 +229,7 @@ func (m model) saveAndQuit() tea.Cmd {
 		return tea.Quit
 	}
 
+	m.CurrentTask.NewTaskInput = false
 	val, err := json.Marshal(m)
 	if err != nil {
 		fmt.Println("Error marshalling tasks:", err)
@@ -181,19 +241,21 @@ func (m model) saveAndQuit() tea.Cmd {
 	if err != nil {
 		fmt.Println("Error saving tasks:", err)
 	}
-	fmt.Println("\n\nSaved tasks to", m.fileName)
 
 	return tea.Quit
 }
 
 func load() tea.Msg {
+	var file string
 	if len(os.Args) < 2 {
 		today := time.Now().Format("01-02-2006")
-		return fileMsg(today)
+		file = today + ".ttdo"
 	} else {
-		file := os.Args[1]
-		return fileMsg(file)
+		file = os.Args[1]
+		file = strings.TrimSuffix(file, ".ttdo")
+		file += ".ttdo"
 	}
+	return fileMsg(file)
 }
 
 type fileMsg string
