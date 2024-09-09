@@ -65,6 +65,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	cancelNewTaskInput := func() {
+		m.CurrentTask.NewTaskInput = false
+		m.cursor = len(m.Tasks) - 1
+		m.IndentationLevels = m.IndentationLevels[:len(m.IndentationLevels)-1]
+	}
+
 	var cmd tea.Cmd
 
 	if m.CurrentTask.NewTaskInput {
@@ -74,6 +80,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "ctrl+c":
+				cancelNewTaskInput()
 				return m, m.saveAndQuit()
 
 			case "tab":
@@ -87,9 +94,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Tasks = append(m.Tasks, m.CurrentTask.TextInput.Value())
 
 			case "esc":
-				m.CurrentTask.NewTaskInput = false
-				m.cursor = len(m.Tasks) - 1
-				m.IndentationLevels = m.IndentationLevels[:len(m.IndentationLevels)-1]
+				cancelNewTaskInput()
 			}
 
 		}
@@ -132,6 +137,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.cursor == len(m.Tasks) {
 					m.cursor--
 				}
+				m.IndentationLevels = append(m.IndentationLevels[:m.cursor], m.IndentationLevels[m.cursor+1:]...)
 			}
 
 		case "j", "down":
