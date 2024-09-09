@@ -21,6 +21,7 @@ const instructions = `Key Bindings:
 'k' / 'j'      		-> Move cursor up/down
 'tab' / 'shift+tab' 	-> Increase/decrease indentation
 'enter' / 'space'   	-> Mark task as done
+'alt+enter'        	-> Save task and add new task
 'd'            		-> Delete task
 'g'            		-> Move to top
 'G'            		-> Move to bottom
@@ -71,11 +72,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.IndentationLevels = m.IndentationLevels[:len(m.IndentationLevels)-1]
 	}
 
+	createNewTaskInput := func() {
+		m.CurrentTask.NewTaskInput = true
+		m.CurrentTask.TextInput.Reset()
+		m.IndentationLevels = append(m.IndentationLevels, 0)
+		m.cursor = len(m.Tasks)
+	}
+
 	var cmd tea.Cmd
 
 	if m.CurrentTask.NewTaskInput {
 		m.CurrentTask.TextInput, cmd = m.CurrentTask.TextInput.Update(msg)
-
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch msg.String() {
@@ -88,6 +95,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			case "shift+tab":
 				handleShiftTab()
+
+			case "alt+enter":
+				m.CurrentTask.NewTaskInput = false
+				m.Tasks = append(m.Tasks, m.CurrentTask.TextInput.Value())
+				createNewTaskInput()
 
 			case "enter":
 				m.CurrentTask.NewTaskInput = false
@@ -125,10 +137,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "n":
-			m.CurrentTask.NewTaskInput = true
-			m.CurrentTask.TextInput.Reset()
-			m.IndentationLevels = append(m.IndentationLevels, 0)
-			m.cursor = len(m.Tasks)
+			createNewTaskInput()
 
 		case "d":
 			if len(m.Tasks) > 0 {
