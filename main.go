@@ -143,6 +143,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.Tasks) > 0 {
 				m.Tasks = append(m.Tasks[:m.cursor], m.Tasks[m.cursor+1:]...)
 				delete(m.Completed, m.cursor)
+
+				// adjust cursor values for completed tasks
+				for k := range m.Completed {
+					if k > m.cursor {
+						delete(m.Completed, k)
+						m.Completed[k-1] = struct{}{}
+					}
+				}
+
 				if m.cursor == len(m.Tasks) {
 					m.cursor--
 				}
